@@ -6,6 +6,7 @@
 #include "GameFramework/GameModeBase.h"
 #include <Widget.h>
 #include <UserWidget.h>
+#include "Kismet/KismetStringLibrary.h"
 #include "Game2048GameModeBase.generated.h"
 
 DECLARE_EVENT(AGame2048GameModeBase, FOnUpKeyPressEvent);
@@ -27,6 +28,7 @@ public:
 	void Down();
 	void Left();
 	void Right();
+	bool checkDeath();
 public:
 	int piece[4][4];
 	int num;
@@ -58,6 +60,7 @@ public:
 		piece[3][1] = UserWidget->GetWidgetFromName("Block42");
 		piece[3][2] = UserWidget->GetWidgetFromName("Block43");
 		piece[3][3] = UserWidget->GetWidgetFromName("Block44");
+
 	}
 
 public:

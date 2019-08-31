@@ -23,7 +23,7 @@ void ChessBoard::initChessBoard()
 
 void ChessBoard::randCreatePiece(int &x, int &y)
 {
-	UE_LOG(LogTemp, Warning, TEXT("randCreatePiece:Num:%d"), num);
+	//UE_LOG(LogTemp, Warning, TEXT("randCreatePiece:Num:%d"), num);
 	if (num) {
 		int currentValue = rand() % num;
 		int temp = 0;
@@ -34,7 +34,7 @@ void ChessBoard::randCreatePiece(int &x, int &y)
 					//UE_LOG(LogTemp, Warning, TEXT("randCreatePiece:row:%d,col:%d"), i, j);
 				}
 				if (temp == currentValue + 1) {
-					piece[i][j] = 2;
+					piece[i][j] = rand() % 2 ? 2 : 4;
 					x = i;
 					y = j;
 					num--;
@@ -188,6 +188,32 @@ void ChessBoard::Right()
 	}
 }
 
+bool ChessBoard::checkDeath()
+{
+	if (num == 0) {
+		for (int i = 0; i < 4; ++i) {
+			for (int j = 0; j < 4; ++j) {
+				if (i - 1 >= 0 && piece[i - 1][j] == piece[i][j]) {
+					return false;
+				}
+				if (i + 1 <= 3 && piece[i + 1][j] == piece[i][j]) {
+					return false;
+				}
+				if (j - 1 >= 0 && piece[i][j - 1] == piece[i][j]) {
+					return false;
+				}
+				if (j + 1 <= 3 && piece[i][j + 1] == piece[i][j]) {
+					return false;
+				}
+			}
+		}
+	}
+	else {
+		return false;
+	}
+	return true;
+}
+
 AGame2048GameModeBase::AGame2048GameModeBase()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -250,7 +276,6 @@ void AGame2048GameModeBase::UpdateOnePiece(int value, UWidget *Widget)
 		Widget->SetVisibility(ESlateVisibility::Hidden);
 	}
 	else {
-		Widget->SetVisibility(ESlateVisibility::Visible);
 		if (Widget->GetClass() == BlockWidgetClass) {
 
 			UWidget *TextObject= Cast<UUserWidget>(Widget)->GetWidgetFromName("Text_Number");
@@ -265,27 +290,34 @@ void AGame2048GameModeBase::UpdateOnePiece(int value, UWidget *Widget)
 				UImage *Image = Cast<UImage>(ImageObject);
 				if (Image) {
 					Image->SetColorAndOpacity(CreateColor(value));
+					//UE_LOG(LogTemp, Warning, TEXT("Color:%s"), *Image->ColorAndOpacity.ToString());
 				}
 			}
 		}
+		Widget->SetVisibility(ESlateVisibility::Visible);
 	}
 }
 
 void AGame2048GameModeBase::UpdateGraph()
 {
-	if (BaseCB->IsRemoveing) {
-		int x=-1, y=-1;
-		BaseCB->randCreatePiece(x, y);
-		if (x != -1 && y != -1) {
-			UUserWidget *widget = Cast<UUserWidget>(DisplayCB->piece[x][y]);
-			PlayAnimation(widget);
-			UE_LOG(LogTemp, Warning, TEXT("Create Piece:(%d,%d)"), x, y);
+	if (BaseCB->checkDeath()) {
+		UE_LOG(LogTemp, Warning, TEXT("You Death!"));
+	}
+	else {
+		if (BaseCB->IsRemoveing) {
+			int x=-1, y=-1;
+			BaseCB->randCreatePiece(x, y);
+			if (x != -1 && y != -1) {
+				UUserWidget *widget = Cast<UUserWidget>(DisplayCB->piece[x][y]);
+				PlayAnimation(widget);
+				//UE_LOG(LogTemp, Warning, TEXT("Create Piece:(%d,%d)"), x, y);
+			}
 		}
 
-	}
-	for (int i = 0; i < 4; ++i) {
-		for (int j = 0; j < 4; ++j) {
-			UpdateOnePiece(BaseCB->piece[i][j], DisplayCB->piece[i][j]);
+		for (int i = 0; i < 4; ++i) {
+			for (int j = 0; j < 4; ++j) {
+				UpdateOnePiece(BaseCB->piece[i][j], DisplayCB->piece[i][j]);
+			}
 		}
 	}
 }
@@ -311,12 +343,22 @@ void AGame2048GameModeBase::PlayAnimation(UUserWidget *widget)
 
 FLinearColor AGame2048GameModeBase::CreateColor(int value)
 {
-	FLinearColor Ret = FLinearColor::White;
+	FLinearColor Ret = FLinearColor::Black;
 	switch (value)
 	{
-	case 2:break;
-	case 4:break;
+	case 2:Ret = FLinearColor(FColor(238, 228, 218)); break;
+	case 4:Ret = FLinearColor(FColor(237, 224, 200)); break;
+	case 8:Ret = FLinearColor(FColor(242, 177, 121)); break;
+	case 16:Ret = FLinearColor(FColor(245, 149, 99)); break;
+	case 32:Ret = FLinearColor(FColor(246, 124, 95)); break;
+	case 64:Ret = FLinearColor(FColor(246, 94, 59)); break;
+	case 128:Ret = FLinearColor(FColor(237, 204, 97)); break;
+	case 256:Ret = FLinearColor(FColor(237, 204, 97)); break;
+	case 512:Ret = FLinearColor(FColor(237, 204, 97)); break;
+	case 1024:Ret = FLinearColor(FColor(237, 204, 97)); break;
+	case 2048:Ret = FLinearColor(FColor(237, 194, 46)); break;
 	default:
+		Ret = FLinearColor(FColor(255, 0, 0));
 		break;
 	}
 	return Ret;
@@ -324,7 +366,7 @@ FLinearColor AGame2048GameModeBase::CreateColor(int value)
 
 void AGame2048GameModeBase::UpKeyHandle()
 {
-	UE_LOG(LogTemp, Warning, TEXT("UpKeyHandle"));
+	//UE_LOG(LogTemp, Warning, TEXT("UpKeyHandle"));
 	BaseCB->Up();
 	if (MainWidgetObject && BaseCB && DisplayCB) {
 		UpdateGraph();
@@ -333,7 +375,7 @@ void AGame2048GameModeBase::UpKeyHandle()
 
 void AGame2048GameModeBase::DownKeyHandle()
 {
-	UE_LOG(LogTemp, Warning, TEXT("DownKeyHandle"));
+	//UE_LOG(LogTemp, Warning, TEXT("DownKeyHandle"));
 	BaseCB->Down();
 	if (MainWidgetObject && BaseCB && DisplayCB) {
 		UpdateGraph();
@@ -342,7 +384,7 @@ void AGame2048GameModeBase::DownKeyHandle()
 
 void AGame2048GameModeBase::LeftKeyHandle()
 {
-	UE_LOG(LogTemp, Warning, TEXT("LeftKeyHandle"));
+	//UE_LOG(LogTemp, Warning, TEXT("LeftKeyHandle"));
 	BaseCB->Left();
 	if (MainWidgetObject && BaseCB && DisplayCB) {
 		UpdateGraph();
@@ -351,7 +393,7 @@ void AGame2048GameModeBase::LeftKeyHandle()
 
 void AGame2048GameModeBase::RightKeyHandle()
 {
-	UE_LOG(LogTemp, Warning, TEXT("RightKeyHandle"));
+	//UE_LOG(LogTemp, Warning, TEXT("RightKeyHandle"));
 	BaseCB->Right();
 	if (MainWidgetObject && BaseCB && DisplayCB) {
 		UpdateGraph();

@@ -55,7 +55,7 @@ void AGame2048PlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 
 void AGame2048PlayerCharacter::OnUpKeyPressCallback()
 {
-	UE_LOG(LogTemp, Warning, TEXT("OnUpKeyPressCallback"));
+	//UE_LOG(LogTemp, Warning, TEXT("OnUpKeyPressCallback"));
 	if (GameModeBase) {
 		GameModeBase->OnUpKeyPressEvent.Broadcast();
 	}
@@ -63,7 +63,7 @@ void AGame2048PlayerCharacter::OnUpKeyPressCallback()
 
 void AGame2048PlayerCharacter::OnDownKeyPressCallback()
 {
-	UE_LOG(LogTemp, Warning, TEXT("OnDownKeyPressCallback"));
+	//UE_LOG(LogTemp, Warning, TEXT("OnDownKeyPressCallback"));
 	if (GameModeBase) {
 		GameModeBase->OnDownKeyPressEvent.Broadcast();
 	}
@@ -71,7 +71,7 @@ void AGame2048PlayerCharacter::OnDownKeyPressCallback()
 
 void AGame2048PlayerCharacter::OnLeftKeyPressCallback()
 {
-	UE_LOG(LogTemp, Warning, TEXT("OnLeftKeyPressCallback"));
+	//UE_LOG(LogTemp, Warning, TEXT("OnLeftKeyPressCallback"));
 	if (GameModeBase) {
 		GameModeBase->OnLeftKeyPressEvent.Broadcast();
 	}
@@ -79,7 +79,7 @@ void AGame2048PlayerCharacter::OnLeftKeyPressCallback()
 
 void AGame2048PlayerCharacter::OnRightKeyPressCallback()
 {
-	UE_LOG(LogTemp, Warning, TEXT("OnRightKeyPressCallback"));
+	//UE_LOG(LogTemp, Warning, TEXT("OnRightKeyPressCallback"));
 	if (GameModeBase) {
 		GameModeBase->OnRightKeyPressEvent.Broadcast();
 	}
