@@ -10,6 +10,10 @@
 #include <WidgetBlueprintGeneratedClass.h>
 #include <WidgetAnimation.h>
 #include <Image.h>
+#include "Kismet/GameplayStatics.h"
+#include "Button.h"
+#include "SWindow.h"
+#include "SWidget.h"
 
 void ChessBoard::initChessBoard()
 {
@@ -255,6 +259,7 @@ void AGame2048GameModeBase::BeginPlay()
 	if (MainWidgetObject && BaseCB && DisplayCB) {
 		if (BaseCB) BaseCB->IsRemoveing = true;
 		UpdateGraph();
+		InitButtonsEvent();
 	}
 }
 
@@ -305,6 +310,7 @@ void AGame2048GameModeBase::UpdateGraph()
 	}
 	else {
 		if (BaseCB->IsRemoveing) {
+			UGameplayStatics::PlaySound2D(this, LoadObject<USoundBase>(this, TEXT("SoundWave'/Game/Resource/1.1'")));
 			int x=-1, y=-1;
 			BaseCB->randCreatePiece(x, y);
 			if (x != -1 && y != -1) {
@@ -364,6 +370,37 @@ FLinearColor AGame2048GameModeBase::CreateColor(int value)
 	return Ret;
 }
 
+void AGame2048GameModeBase::InitButtonsEvent()
+{
+	if (MainWidgetObject && BaseCB && DisplayCB) {
+		UWidget *ButtonObject0 = MainWidgetObject->GetWidgetFromName("NewGameButton");
+		if (ButtonObject0) {
+			UButton *Button0 = Cast<UButton>(ButtonObject0);
+			Button0->OnClicked.AddDynamic(this, &AGame2048GameModeBase::OnClickedButton0Callback);
+		}
+		UWidget *ButtonObject1 = MainWidgetObject->GetWidgetFromName("RandomButton");
+		if (ButtonObject1) {
+			UButton *Button1 = Cast<UButton>(ButtonObject1);
+			Button1->OnClicked.AddDynamic(this, &AGame2048GameModeBase::OnClickedButton1Callback);
+		}
+		UWidget *ButtonObject2 = MainWidgetObject->GetWidgetFromName("CancelButton");
+		if (ButtonObject2) {
+			UButton *Button2 = Cast<UButton>(ButtonObject2);
+			Button2->OnClicked.AddDynamic(this, &AGame2048GameModeBase::OnClickedButton2Callback);
+		}
+		UWidget *ButtonObject3 = MainWidgetObject->GetWidgetFromName("RankButton");
+		if (ButtonObject3) {
+			UButton *Button3 = Cast<UButton>(ButtonObject3);
+			Button3->OnClicked.AddDynamic(this, &AGame2048GameModeBase::OnClickedButton3Callback);
+		}
+		UWidget *ButtonObject4 = MainWidgetObject->GetWidgetFromName("DescriptionButton");
+		if (ButtonObject4) {
+			UButton *Button4 = Cast<UButton>(ButtonObject4);
+			Button4->OnClicked.AddDynamic(this, &AGame2048GameModeBase::OnClickedButton4Callback);
+		}
+	}
+}
+
 void AGame2048GameModeBase::UpKeyHandle()
 {
 	//UE_LOG(LogTemp, Warning, TEXT("UpKeyHandle"));
@@ -398,5 +435,39 @@ void AGame2048GameModeBase::RightKeyHandle()
 	if (MainWidgetObject && BaseCB && DisplayCB) {
 		UpdateGraph();
 	}
+}
+
+void AGame2048GameModeBase::OnClickedButton0Callback()
+{
+	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton0Callback"));
+	//TSharedRef<SWindow> MainWindow = SNew(SWindow).Content()[
+
+	//];
+
+
+}
+
+void AGame2048GameModeBase::OnClickedButton1Callback()
+{
+	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton1Callback"));
+
+}
+
+void AGame2048GameModeBase::OnClickedButton2Callback()
+{
+	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton2Callback"));
+
+}
+
+void AGame2048GameModeBase::OnClickedButton3Callback()
+{
+	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton3Callback"));
+
+}
+
+void AGame2048GameModeBase::OnClickedButton4Callback()
+{
+	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton4Callback"));
+
 }
 

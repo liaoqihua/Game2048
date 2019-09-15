@@ -89,6 +89,7 @@ public:
 	void UpdateGraph();
 	void PlayAnimation(UUserWidget *widget);
 	FLinearColor CreateColor(int value);
+	void InitButtonsEvent();
 
 	UFUNCTION()
 		void UpKeyHandle();
@@ -98,6 +99,16 @@ public:
 		void LeftKeyHandle();
 	UFUNCTION()
 		void RightKeyHandle();
+	UFUNCTION()
+		void OnClickedButton0Callback();
+	UFUNCTION()
+		void OnClickedButton1Callback();
+	UFUNCTION()
+		void OnClickedButton2Callback();
+	UFUNCTION()
+		void OnClickedButton3Callback();
+	UFUNCTION()
+		void OnClickedButton4Callback();
 
 public:
 	UPROPERTY(EditAnywhere, Category = "WBPClass")
