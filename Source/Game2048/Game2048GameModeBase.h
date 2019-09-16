@@ -7,6 +7,8 @@
 #include <Widget.h>
 #include <UserWidget.h>
 #include "Kismet/KismetStringLibrary.h"
+#include <SWindow.h>
+#include <Reply.h>
 #include "Game2048GameModeBase.generated.h"
 
 DECLARE_EVENT(AGame2048GameModeBase, FOnUpKeyPressEvent);
@@ -110,6 +112,9 @@ public:
 	UFUNCTION()
 		void OnClickedButton4Callback();
 
+	FReply OnClickedButton0YesCallback();
+	FReply OnClickedButton0NoCallback();
+
 public:
 	UPROPERTY(EditAnywhere, Category = "WBPClass")
 		TSubclassOf<UUserWidget> MainWidgetClass;
@@ -125,4 +130,6 @@ public:
 
 	TSharedPtr<ChessBoard> BaseCB;
 	TSharedPtr<UWidgetChessBoard> DisplayCB;
+
+	TSharedPtr<SWindow> newGameWindowPtr;
 };

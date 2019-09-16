@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+Ôªø// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Game2048GameModeBase.h"
 #include <ConstructorHelpers.h>
@@ -12,8 +12,12 @@
 #include <Image.h>
 #include "Kismet/GameplayStatics.h"
 #include "Button.h"
-#include "SWindow.h"
 #include "SWidget.h"
+#include <MessageDialog.h>
+#include <GenericPlatformMisc.h>
+#include <STextBlock.h>
+#include <SlateApplication.h>
+#include <SButton.h>
 
 void ChessBoard::initChessBoard()
 {
@@ -75,10 +79,10 @@ void ChessBoard::Up()
 					j = j - 1;
 					num++;
 					if (!IsRemoveing) IsRemoveing = true;
-					break;//÷–ÕæΩ· ¯“∆∂Ø
+					break;//‰∏≠ÈÄîÁªìÊùüÁßªÂä®
 				}
 				else {
-					break;//“∆∂ØµΩµ◊≤ø
+					break;//ÁßªÂä®Âà∞Â∫ïÈÉ®
 				}
 			}
 		}
@@ -439,12 +443,35 @@ void AGame2048GameModeBase::RightKeyHandle()
 
 void AGame2048GameModeBase::OnClickedButton0Callback()
 {
-	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton0Callback"));
-	//TSharedRef<SWindow> MainWindow = SNew(SWindow).Content()[
+	//UE_LOG(LogTemp, Warning, TEXT("OnClickedButton0Callback"));
 
-	//];
+	FText MessageText = FText::FromString(TEXT("ÊòØÂê¶ÂºÄÂßãÊñ∞Ê∏∏Êàè?"));
+	FText TitleText = FText::FromString(TEXT("Êñ∞Ê∏∏Êàè"));
+	//auto RetVal = FMessageDialog::Open(EAppMsgType::YesNo, EAppReturnType::No, MessageText, &TitleText);
+	//if (RetVal == EAppReturnType::Yes) {
+	//	if (BaseCB) {
+	//		BaseCB->initChessBoard();
+	//		BaseCB->initChessBoard();
+	//		UpdateGraph();
+	//	}
+	//}
 
-
+	newGameWindowPtr = SNew(SWindow).Title(TitleText).ClientSize(FVector2D(200.0f, 100.f)).IsTopmostWindow(true);
+	TSharedPtr<SVerticalBox> mainWidget = SNew(SVerticalBox) + SVerticalBox::Slot().HAlign(HAlign_Fill)[
+		SNew(STextBlock).Text(MessageText)
+	] + SVerticalBox::Slot().HAlign(HAlign_Right)[
+		SNew(SHorizontalBox) + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
+			SNew(SButton).Content()[
+				SNew(STextBlock).Text(FText::FromString("Yes"))
+			].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedButton0YesCallback))
+		] + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
+			SNew(SButton).Content()[
+				SNew(STextBlock).Text(FText::FromString("No"))
+			].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedButton0NoCallback))
+		]
+	];
+	newGameWindowPtr->SetContent(mainWidget.ToSharedRef());
+	FSlateApplication::Get().AddWindow(newGameWindowPtr.ToSharedRef());
 }
 
 void AGame2048GameModeBase::OnClickedButton1Callback()
@@ -469,5 +496,26 @@ void AGame2048GameModeBase::OnClickedButton4Callback()
 {
 	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton4Callback"));
 
+}
+
+FReply AGame2048GameModeBase::OnClickedButton0YesCallback()
+{
+	if (BaseCB) {
+		BaseCB->initChessBoard();
+		BaseCB->initChessBoard();
+		UpdateGraph();
+	}
+	FSlateApplication::Get().DestroyWindowImmediately(newGameWindowPtr.ToSharedRef());
+	newGameWindowPtr.Reset();
+
+	return FReply::Handled();
+}
+
+FReply AGame2048GameModeBase::OnClickedButton0NoCallback()
+{
+	FSlateApplication::Get().DestroyWindowImmediately(newGameWindowPtr.ToSharedRef());
+	newGameWindowPtr.Reset();
+
+	return FReply::Handled();
 }
 
