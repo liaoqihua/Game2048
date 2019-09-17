@@ -9,34 +9,13 @@
 #include "Kismet/KismetStringLibrary.h"
 #include <SWindow.h>
 #include <Reply.h>
+#include "Game2048SaveGame.h"
 #include "Game2048GameModeBase.generated.h"
 
 DECLARE_EVENT(AGame2048GameModeBase, FOnUpKeyPressEvent);
 DECLARE_EVENT(AGame2048GameModeBase, FOnDownKeyPressEvent);
 DECLARE_EVENT(AGame2048GameModeBase, FOnLeftKeyPressEvent);
 DECLARE_EVENT(AGame2048GameModeBase, FOnRightKeyPressEvent);
-
-class ChessBoard
-{
-public:
-	ChessBoard() 
-		:num(16), total(16), IsRemoveing(false)
-	{
-		initChessBoard();
-	}
-	void initChessBoard();
-	void randCreatePiece(int &x, int &y);
-	void Up();
-	void Down();
-	void Left();
-	void Right();
-	bool checkDeath();
-public:
-	int piece[4][4];
-	int num;
-	int total;
-	bool IsRemoveing;
-};
 
 class UWidgetChessBoard
 {
@@ -63,10 +42,12 @@ public:
 		piece[3][2] = UserWidget->GetWidgetFromName("Block43");
 		piece[3][3] = UserWidget->GetWidgetFromName("Block44");
 
+		score = UserWidget->GetWidgetFromName("ScoreTextBlock");
 	}
 
 public:
 	UWidget *piece[4][4];
+	UWidget *score;
 };
 
 /**
@@ -84,14 +65,20 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
+	virtual void BeginDestroy() override;
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void Tick(float DeltaSeconds) override;
 public:
 	void UpdateOnePiece(int value, UWidget *Widget);
 	void UpdateGraph();
+	void UpdateScore();
 	void PlayAnimation(UUserWidget *widget);
 	FLinearColor CreateColor(int value);
 	void InitButtonsEvent();
+
+	void LoadData();
+	void SaveData();
+	void UpdateLastData();
 
 	UFUNCTION()
 		void UpKeyHandle();
@@ -130,6 +117,8 @@ public:
 
 	TSharedPtr<ChessBoard> BaseCB;
 	TSharedPtr<UWidgetChessBoard> DisplayCB;
+	TSharedPtr<UGame2048SaveGame> SaveGamePtr;
 
 	TSharedPtr<SWindow> newGameWindowPtr;
+	TSharedPtr<SWindow> RankWindowPtr;
 };

@@ -10,7 +10,8 @@
 			"LoadingPhase": "Default",
 			"AdditionalDependencies": [
 				"UMGEditor",
-				"Engine"
+				"Engine",
+				"CoreUObject"
 			]
 		}
 	]
