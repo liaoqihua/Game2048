@@ -20,6 +20,10 @@ struct FSaveDataStruct
 		int score;
 	UPROPERTY()
 		FString name;
+	UPROPERTY()
+		int cancelNum;
+	UPROPERTY()
+		int rawScore;
 
 	FSaveDataStruct() {
 		for (int i = 0; i < 4; ++i) {
@@ -29,6 +33,8 @@ struct FSaveDataStruct
 		}
 		num = 16;
 		score = 0;
+		cancelNum = 0;
+		rawScore = 0;
 	}
 };
 

@@ -9,6 +9,8 @@ void UGame2048SaveGame::SetupLastData(const FSaveDataStruct &sds)
 	LastData.score = sds.score;
 	LastData.num = sds.num;
 	LastData.name = sds.name;
+	LastData.cancelNum = sds.cancelNum;
+	LastData.rawScore = sds.rawScore;
 }
 
 void UGame2048SaveGame::SetupRank(const TArray<FSaveDataStruct> &r)
@@ -30,6 +32,7 @@ FSaveDataStruct UGame2048SaveGame::InitDataFromChessBoard(const ChessBoard &cb)
 	}
 	ret.score = cb.score;
 	ret.num = cb.num;
+	ret.cancelNum = cb.cancelNum;
 
 	return ret;
 }
@@ -44,6 +47,7 @@ ChessBoard UGame2048SaveGame::TransDataToChessBoard(const FSaveDataStruct &sds)
 	}
 	cb.score = sds.score;
 	cb.num = sds.num;
+	cb.cancelNum = sds.cancelNum;
 
 	return cb;
 }

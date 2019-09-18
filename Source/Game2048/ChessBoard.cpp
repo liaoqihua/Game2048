@@ -11,6 +11,7 @@ void ChessBoard::initChessBoard()
 	}
 	num = 16;
 	score = 0;
+	cancelNum = 3;
 }
 
 
@@ -285,3 +286,4 @@ void ChessBoard::SetupData(const ChessBoard &cb)
 	num = cb.num;
 	score = cb.score;
 }
+

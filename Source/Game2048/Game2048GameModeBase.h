@@ -44,12 +44,16 @@ public:
 
 		score = UserWidget->GetWidgetFromName("ScoreTextBlock");
 		maxScore = UserWidget->GetWidgetFromName("MaxScoreTB");
+		cancelText = UserWidget->GetWidgetFromName("CancelButtonText");
+		cancelButton = UserWidget->GetWidgetFromName("CancelButton");
 	}
 
 public:
 	UWidget *piece[4][4];
 	UWidget *score;
 	UWidget *maxScore;
+	UWidget *cancelText;
+	UWidget *cancelButton;
 };
 
 /**
@@ -76,6 +80,7 @@ public:
 	void UpdateGraphData();
 	void UpdateScore();
 	void UpdateMaxScore();
+	void UpdateCancelTB();
 	void AddHistory();
 	void PlayAnimation(UUserWidget *widget);
 	FLinearColor CreateColor(int value);
@@ -106,6 +111,8 @@ public:
 		void OnClickedButton3Callback();
 	UFUNCTION()
 		void OnClickedButton4Callback();
+	UFUNCTION()
+		FText CancelButtonTextCallback();
 
 	FReply OnClickedButton0YesCallback();
 	FReply OnClickedButton0NoCallback();
@@ -125,7 +132,6 @@ public:
 	FOnLeftKeyPressEvent OnLeftKeyPressEvent;
 	FOnRightKeyPressEvent OnRightKeyPressEvent;
 
-
 	TSharedPtr<ChessBoard> BaseCB;
 	TSharedPtr<UWidgetChessBoard> DisplayCB;
 
@@ -140,4 +146,6 @@ public:
 private:
 	bool bIsSaving;
 	bool bIsRestoring;//用于控制开始载入数据时不更新面板
+	int FCancelNum;
+	int FRawScore;
 };

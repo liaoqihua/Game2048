@@ -9,7 +9,7 @@ struct ChessBoard
 
 public:
 	ChessBoard()
-		:num(16), total(16), IsRemoveing(false), score(0)
+		:num(16), total(16), IsRemoveing(false), score(0), cancelNum(0)
 	{
 		initChessBoard();
 	}
@@ -29,4 +29,5 @@ public:
 	int total;
 	bool IsRemoveing;
 	int score;
+	int cancelNum;
 };

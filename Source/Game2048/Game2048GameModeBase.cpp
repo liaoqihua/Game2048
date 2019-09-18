@@ -24,7 +24,7 @@
 #include <SEditableText.h>
 
 AGame2048GameModeBase::AGame2048GameModeBase()
-	:bIsSaving(false), bIsRestoring(false)
+	:bIsSaving(false), bIsRestoring(false), FCancelNum(0), FRawScore(0)
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -136,6 +136,8 @@ void AGame2048GameModeBase::UpdateGraph()
 	}
 	else {
 		if (BaseCB->IsRemoveing) {
+			AddHistory();
+
 			UGameplayStatics::PlaySound2D(this, LoadObject<USoundBase>(this, TEXT("SoundWave'/Game/Resource/1.1'")));
 			int x=-1, y=-1;
 			BaseCB->randCreatePiece(x, y);
@@ -143,7 +145,6 @@ void AGame2048GameModeBase::UpdateGraph()
 				UUserWidget *widget = Cast<UUserWidget>(DisplayCB->piece[x][y]);
 				PlayAnimation(widget);
 			}
-			AddHistory();
 		}
 		UpdateGraphData();
 	}
@@ -167,7 +168,16 @@ void AGame2048GameModeBase::UpdateScore()
 		if (ScoreBlock && BaseCB) {
 			ScoreBlock->SetText(UKismetTextLibrary::Conv_IntToText(BaseCB->score));
 		}
+
+		if ((BaseCB->score - FRawScore) > 100) {
+			++FCancelNum;
+			FRawScore = BaseCB->score - (BaseCB->score % 100);
+		}
+		else if (BaseCB->score < FRawScore) {
+			FRawScore = BaseCB->score - (BaseCB->score % 100);
+		}
 	}
+	UpdateCancelTB();
 }
 
 void AGame2048GameModeBase::UpdateMaxScore()
@@ -184,11 +194,23 @@ void AGame2048GameModeBase::UpdateMaxScore()
 	}
 }
 
+void AGame2048GameModeBase::UpdateCancelTB()
+{
+	if (DisplayCB) {
+		if (FCancelNum > 0) {
+			DisplayCB->cancelButton->SetIsEnabled(true);
+		}
+		else DisplayCB->cancelButton->SetIsEnabled(false);
+		UTextBlock *textBlock = Cast<UTextBlock>(DisplayCB->cancelText);
+		textBlock->SetText(CancelButtonTextCallback());
+	}
+}
+
 void AGame2048GameModeBase::AddHistory()
 {
 	History.Add(*BaseCB);
 	if (History.Num() >= 10){
-		History.Pop();
+		History.RemoveAt(0);
 	}
 }
 
@@ -418,8 +440,11 @@ void AGame2048GameModeBase::LoadLocalData()
 		TSharedPtr<UGame2048SaveGame> SaveGamePtr = MakeShareable(Cast<UGame2048SaveGame>(UGameplayStatics::LoadGameFromSlot("SaveData", 0)));
 		if (SaveGamePtr.IsValid()) {
 			UE_LOG(LogTemp, Warning, TEXT("LoadLocalData"));
-			if (BaseCB)
+			if (BaseCB) {
 				*BaseCB = UGame2048SaveGame::TransDataToChessBoard(SaveGamePtr->LastData);
+				FCancelNum = BaseCB->cancelNum;
+				FRawScore = SaveGamePtr->LastData.rawScore;
+			}
 			SetupRank(SaveGamePtr->Rank);
 			bIsSaving = SaveGamePtr->bIsSaving;
 			bIsRestoring = true;
@@ -441,7 +466,9 @@ void AGame2048GameModeBase::SaveLocalData()
 	TSharedPtr<UGame2048SaveGame> SaveGamePtr = MakeShareable(Cast<UGame2048SaveGame>(UGameplayStatics::CreateSaveGameObject(UGame2048SaveGame::StaticClass())));
 
 	if (SaveGamePtr && BaseCB) {
+		BaseCB->cancelNum = FCancelNum;
 		FSaveDataStruct SaveData = UGame2048SaveGame::InitDataFromChessBoard(*BaseCB);
+		SaveData.rawScore = FRawScore;
 		SaveGamePtr->SetupLastData(SaveData);
 		SaveGamePtr->SetupRank(Rank);
 		SaveGamePtr->bIsSaving = bIsSaving;
@@ -509,6 +536,8 @@ void AGame2048GameModeBase::OnClickedButton1Callback()
 		History.RemoveAll([](const ChessBoard &cb) {return true; });
 
 		BaseCB->RandomStartGame();
+		FCancelNum = 0;
+		FRawScore = BaseCB->score - BaseCB->score % 100;
 		BaseCB->IsRemoveing = true;
 		UpdateGraph();
 		bIsSaving = false;
@@ -517,17 +546,14 @@ void AGame2048GameModeBase::OnClickedButton1Callback()
 
 void AGame2048GameModeBase::OnClickedButton2Callback()
 {
-	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton2Callback"));
+	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton2Callback:%d"), FCancelNum);
 
-
-	if (History.Num() > 1) {
-		*BaseCB = History[History.Num() - 1];
-		History.RemoveAt(History.Num() - 1);
+	if (FCancelNum) {
+		if (History.Num() > 1)
+			*BaseCB = History.Pop();
+		--FCancelNum;
+		UpdateGraphData();
 	}
-	else {
-		*BaseCB = History[History.Num() - 1];
-	}
-	UpdateGraphData();
 }
 
 void AGame2048GameModeBase::OnClickedButton3Callback()
@@ -564,6 +590,11 @@ void AGame2048GameModeBase::OnClickedButton4Callback()
 	}
 }
 
+FText AGame2048GameModeBase::CancelButtonTextCallback()
+{
+	return FText::Format(FTextFormat::FromString(TEXT("撤销({0})")), FCancelNum);
+}
+
 FReply AGame2048GameModeBase::OnClickedButton0YesCallback()
 {
 	History.RemoveAll([](const ChessBoard &cb) {return true; });
@@ -571,6 +602,8 @@ FReply AGame2048GameModeBase::OnClickedButton0YesCallback()
 	if (BaseCB) {
 		BaseCB->initChessBoard();
 		BaseCB->IsRemoveing = true;
+		FCancelNum = 0;
+		FRawScore = 0;
 		UpdateGraph();
 		UpdateMaxScore();
 		bIsSaving = false;
