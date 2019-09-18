@@ -21,8 +21,10 @@
 #include <SCanvas.h>
 #include <SBox.h>
 #include <SScrollBox.h>
+#include <SEditableText.h>
 
 AGame2048GameModeBase::AGame2048GameModeBase()
+	:bIsSaving(false), bIsRestoring(false)
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -37,6 +39,8 @@ AGame2048GameModeBase::AGame2048GameModeBase()
 		BlockWidgetClass = BlockWidgetAsset.Class;
 	}
 
+	BaseCB = MakeShareable(new ChessBoard());
+
 	OnUpKeyPressEvent.AddUFunction(this, "UpKeyHandle");
 	OnDownKeyPressEvent.AddUFunction(this, "DownKeyHandle");
 	OnLeftKeyPressEvent.AddUFunction(this, "LeftKeyHandle");
@@ -47,7 +51,7 @@ void AGame2048GameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	LoadData();
+	LoadLocalData();
 
 	UWorld *World = GetWorld();
 	if (World) {
@@ -61,16 +65,22 @@ void AGame2048GameModeBase::BeginPlay()
 	}
 
 	if (MainWidgetObject && BaseCB && DisplayCB) {
-		if (BaseCB) BaseCB->IsRemoveing = true;
-		UpdateGraph();
+		if (bIsRestoring) {
+			UpdateGraphData();
+			UpdateMaxScore();
+			bIsRestoring = false;
+		}
+		else {
+			if (BaseCB) BaseCB->IsRemoveing = true;
+			UpdateGraph();
+		}
 		InitButtonsEvent();
 	}
 }
 
 void AGame2048GameModeBase::BeginDestroy()
 {
-	SaveData();
-	UE_LOG(LogTemp, Warning, TEXT("BeginDestroy"));
+	SaveLocalData();
 
 	Super::BeginDestroy();
 }
@@ -117,35 +127,12 @@ void AGame2048GameModeBase::UpdateOnePiece(int value, UWidget *Widget)
 
 void AGame2048GameModeBase::UpdateGraph()
 {
-	UpdateLastData();
-
 	// 检测死亡逻辑
 	if (BaseCB->checkDeath()) {
-		//TODO
-		FText MessageText = FText::Format(FText::FromString(TEXT("没有可移动的块了\n是否开始新游戏?\n(你还有{0}次撤销机会)")), 0);
-		FText TitleText = FText::FromString(TEXT("游戏结束"));
-
-		if (!newGameWindowPtr.IsValid()) {
-			newGameWindowPtr = SNew(SWindow).Title(TitleText).ClientSize(FVector2D(200.0f, 100.f)).IsTopmostWindow(true);
-			TSharedPtr<SVerticalBox> mainWidget = SNew(SVerticalBox) + SVerticalBox::Slot().HAlign(HAlign_Fill)[
-				SNew(STextBlock).Text(MessageText)
-			] + SVerticalBox::Slot().HAlign(HAlign_Right)[
-				SNew(SHorizontalBox) + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
-					SNew(SButton).Content()[
-						SNew(STextBlock).Text(FText::FromString(TEXT("是(Yes)")))
-					].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedButton0YesCallback))
-				] + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
-					SNew(SButton).Content()[
-						SNew(STextBlock).Text(FText::FromString(TEXT("否(No)")))
-					].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedButton0NoCallback))
-				]
-			];
-				newGameWindowPtr->SetOnWindowClosed(FOnWindowClosed::CreateLambda([&](TSharedRef<SWindow> window) {
-					newGameWindowPtr.Reset();
-				}));
-				newGameWindowPtr->SetContent(mainWidget.ToSharedRef());
-				FSlateApplication::Get().AddWindow(newGameWindowPtr.ToSharedRef());
-		}
+		if (!bIsSaving)
+			CreateInputNameWidget();
+		else
+			CreateRestartWidget();
 	}
 	else {
 		if (BaseCB->IsRemoveing) {
@@ -155,18 +142,22 @@ void AGame2048GameModeBase::UpdateGraph()
 			if (x != -1 && y != -1) {
 				UUserWidget *widget = Cast<UUserWidget>(DisplayCB->piece[x][y]);
 				PlayAnimation(widget);
-				//UE_LOG(LogTemp, Warning, TEXT("Create Piece:(%d,%d)"), x, y);
 			}
+			AddHistory();
 		}
-
-		for (int i = 0; i < 4; ++i) {
-			for (int j = 0; j < 4; ++j) {
-				UpdateOnePiece(BaseCB->piece[i][j], DisplayCB->piece[i][j]);
-			}
-		}
-
-		UpdateScore();
+		UpdateGraphData();
 	}
+}
+
+void AGame2048GameModeBase::UpdateGraphData()
+{
+	for (int i = 0; i < 4; ++i) {
+		for (int j = 0; j < 4; ++j) {
+			UpdateOnePiece(BaseCB->piece[i][j], DisplayCB->piece[i][j]);
+		}
+	}
+
+	UpdateScore();
 }
 
 void AGame2048GameModeBase::UpdateScore()
@@ -176,6 +167,28 @@ void AGame2048GameModeBase::UpdateScore()
 		if (ScoreBlock && BaseCB) {
 			ScoreBlock->SetText(UKismetTextLibrary::Conv_IntToText(BaseCB->score));
 		}
+	}
+}
+
+void AGame2048GameModeBase::UpdateMaxScore()
+{
+	if (Rank.Num()) {
+		Rank.Sort([](const FSaveDataStruct &a, const FSaveDataStruct &b) {return a.score > b.score; });
+
+		if (DisplayCB) {
+			UTextBlock *TextBlock = Cast<UTextBlock>(DisplayCB->maxScore);
+			if (TextBlock) {
+				TextBlock->SetText(UKismetTextLibrary::Conv_IntToText(Rank[0].score));
+			}
+		}
+	}
+}
+
+void AGame2048GameModeBase::AddHistory()
+{
+	History.Add(*BaseCB);
+	if (History.Num() >= 10){
+		History.Pop();
 	}
 }
 
@@ -252,35 +265,197 @@ void AGame2048GameModeBase::InitButtonsEvent()
 	}
 }
 
-void AGame2048GameModeBase::LoadData()
+void AGame2048GameModeBase::CreateRestartWidget()
+{
+	FText MessageText = FText::Format(FText::FromString(TEXT("没有可移动的块了\n是否开始新游戏?\n(你还有{0}次撤销机会)")), 0);
+	FText TitleText = FText::FromString(TEXT("游戏结束"));
+
+	if (!newGameWindowPtr.IsValid()) {
+		newGameWindowPtr = SNew(SWindow).Title(TitleText).ClientSize(FVector2D(200.0f, 100.f)).IsTopmostWindow(true);
+		TSharedPtr<SVerticalBox> mainWidget = SNew(SVerticalBox) + SVerticalBox::Slot().HAlign(HAlign_Fill)[
+			SNew(STextBlock).Text(MessageText)
+		] + SVerticalBox::Slot().HAlign(HAlign_Right)[
+			SNew(SHorizontalBox) + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
+				SNew(SButton).Content()[
+					SNew(STextBlock).Text(FText::FromString(TEXT("是(Yes)")))
+				].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedButton0YesCallback))
+			] + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
+				SNew(SButton).Content()[
+					SNew(STextBlock).Text(FText::FromString(TEXT("否(No)")))
+				].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedButton0NoCallback))
+			]
+		];
+			newGameWindowPtr->SetOnWindowClosed(FOnWindowClosed::CreateLambda([&](TSharedRef<SWindow> window) {
+				newGameWindowPtr.Reset();
+			}));
+			newGameWindowPtr->SetContent(mainWidget.ToSharedRef());
+			FSlateApplication::Get().AddWindow(newGameWindowPtr.ToSharedRef());
+	}
+}
+
+void AGame2048GameModeBase::CreateRankWidget()
+{
+	if (!RankWindowPtr.IsValid()) {
+		RankWindowPtr = SNew(SWindow).ClientSize(FVector2D(200.0f, 350.0f)).Title(FText::FromString(TEXT("排行榜")));
+
+		TSharedPtr<SScrollBox> ScrollWidget;
+		TSharedPtr<SWidget> CanvasPanel = SNew(SCanvas) + SCanvas::Slot().Position(FVector2D(0.0f, 0.0f)).Size(FVector2D(200.0f, 50.0f))[
+			SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center).HAlign(HAlign_Center)[
+				SNew(STextBlock).Text(FText::FromString(TEXT("---排行榜---")))
+			]
+		] + SCanvas::Slot().Position(FVector2D(0.0f, 50.0f)).Size(FVector2D(200.0f, 245.0f))[
+			SAssignNew(ScrollWidget, SScrollBox) + SScrollBox::Slot().VAlign(VAlign_Fill)[
+				SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1.0f).HAlign(HAlign_Center)[
+					SNew(STextBlock).Text(FText::FromString(TEXT("排名")))
+				] + SHorizontalBox::Slot().FillWidth(1.0f).HAlign(HAlign_Center)[
+					SNew(STextBlock).Text(FText::FromString(TEXT("姓名")))
+				] + SHorizontalBox::Slot().FillWidth(3.0f).HAlign(HAlign_Center)[
+					SNew(STextBlock).Text(FText::FromString(TEXT("得分")))
+				]
+			]
+		] + SCanvas::Slot().Position(FVector2D(0.0f, 295.0f)).Size(FVector2D(200.0f, 55.0f))[
+			SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center).HAlign(HAlign_Right).Padding(FMargin(10.0f, 0.0f))[
+				SNew(SButton).Content()[
+					SNew(STextBlock).Text(FText::FromString(TEXT("确定")))
+				].OnClicked(FOnClicked::CreateLambda([&]() -> FReply {
+						FSlateApplication::Get().DestroyWindowImmediately(RankWindowPtr.ToSharedRef());
+						RankWindowPtr.Reset();
+						FSlateApplication::Get().SetUserFocusToGameViewport(0);
+						return FReply::Handled();
+					}))
+			]
+		];
+					//更新最大值
+					UpdateMaxScore();
+
+					//添加数据
+					int i = 0;
+					for (auto &item : Rank) {
+						ScrollWidget->AddSlot().VAlign(VAlign_Fill)[
+							SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1.0f).HAlign(HAlign_Center)[
+								SNew(STextBlock).Text(UKismetTextLibrary::Conv_IntToText(i + 1))
+							] + SHorizontalBox::Slot().FillWidth(1.0f).HAlign(HAlign_Center)[
+								SNew(STextBlock).Text(FText::FromString(item.name))
+							] + SHorizontalBox::Slot().FillWidth(3.0f).HAlign(HAlign_Center)[
+								SNew(STextBlock).Text(UKismetTextLibrary::Conv_IntToText(item.score))
+							]
+						];
+
+						++i;
+						if (i >= 10) break;
+					}
+
+					RankWindowPtr->SetContent(CanvasPanel.ToSharedRef());
+					RankWindowPtr->SetOnWindowClosed(FOnWindowClosed::CreateLambda([&](TSharedRef<SWindow> window) {
+						RankWindowPtr.Reset();
+					}));
+					FSlateApplication::Get().AddWindow(RankWindowPtr.ToSharedRef());
+	}
+}
+
+void AGame2048GameModeBase::CreateInputNameWidget()
+{
+	FText MessageText = FText::FromString(TEXT("留下大名:"));
+	FText TitleText = FText::FromString(TEXT("登上榜单"));
+
+	if (!NameWindowPtr.IsValid()) {
+		NameWindowPtr = SNew(SWindow).Title(TitleText).ClientSize(FVector2D(200.0f, 100.f)).IsTopmostWindow(true);
+		TSharedPtr<SVerticalBox> mainWidget = SNew(SVerticalBox) + SVerticalBox::Slot().FillHeight(2.0f).HAlign(HAlign_Fill)[
+			SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)[
+				SNew(STextBlock).Text(MessageText)
+			] + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)[
+				SAssignNew(EditTextPtr, SEditableText)
+			]
+		] + SVerticalBox::Slot().FillHeight(1.0f).HAlign(HAlign_Right)[
+			SNew(SHorizontalBox) + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
+				SNew(SButton).Content()[
+					SNew(STextBlock).Text(FText::FromString(TEXT("确定(Yes)")))
+				].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedNameYesCallback))
+			] + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
+				SNew(SButton).Content()[
+					SNew(STextBlock).Text(FText::FromString(TEXT("取消(No)")))
+				].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedNameNoCallback))
+			]
+		];
+			NameWindowPtr->SetOnWindowClosed(FOnWindowClosed::CreateUObject(this, &AGame2048GameModeBase::NameCloseCallback));
+			NameWindowPtr->SetContent(mainWidget.ToSharedRef());
+			FSlateApplication::Get().AddWindow(NameWindowPtr.ToSharedRef());
+	}
+}
+
+void AGame2048GameModeBase::CreateNewGameWidget()
+{
+	FText MessageText = FText::FromString(TEXT("是否开始新游戏?"));
+	FText TitleText = FText::FromString(TEXT("新游戏"));
+
+	if (!newGameWindowPtr.IsValid()) {
+		newGameWindowPtr = SNew(SWindow).Title(TitleText).ClientSize(FVector2D(200.0f, 100.f)).IsTopmostWindow(true);
+		TSharedPtr<SVerticalBox> mainWidget = SNew(SVerticalBox) + SVerticalBox::Slot().HAlign(HAlign_Fill)[
+			SNew(STextBlock).Text(MessageText)
+		] + SVerticalBox::Slot().HAlign(HAlign_Right)[
+			SNew(SHorizontalBox) + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
+				SNew(SButton).Content()[
+					SNew(STextBlock).Text(FText::FromString("Yes"))
+				].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedButton0YesCallback))
+			] + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
+				SNew(SButton).Content()[
+					SNew(STextBlock).Text(FText::FromString("No"))
+				].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedButton0NoCallback))
+			]
+		];
+			newGameWindowPtr->SetOnWindowClosed(FOnWindowClosed::CreateLambda([&](TSharedRef<SWindow> window) {
+				newGameWindowPtr.Reset();
+			}));
+			newGameWindowPtr->SetContent(mainWidget.ToSharedRef());
+			FSlateApplication::Get().AddWindow(newGameWindowPtr.ToSharedRef());
+	}
+}
+
+void AGame2048GameModeBase::LoadLocalData()
 {
 	bool bRet = UGameplayStatics::DoesSaveGameExist("SaveData", 0);
 	if (bRet) {
-		SaveGamePtr = MakeShareable(Cast<UGame2048SaveGame>(UGameplayStatics::LoadGameFromSlot("SaveData", 0)));
-		BaseCB = MakeShareable(new ChessBoard());
-		if (SaveGamePtr) {
-			BaseCB->SetupData(SaveGamePtr->TransDataToChessBoard(SaveGamePtr->LastData));
+		TSharedPtr<UGame2048SaveGame> SaveGamePtr = MakeShareable(Cast<UGame2048SaveGame>(UGameplayStatics::LoadGameFromSlot("SaveData", 0)));
+		if (SaveGamePtr.IsValid()) {
+			UE_LOG(LogTemp, Warning, TEXT("LoadLocalData"));
+			if (BaseCB)
+				*BaseCB = UGame2048SaveGame::TransDataToChessBoard(SaveGamePtr->LastData);
+			SetupRank(SaveGamePtr->Rank);
+			bIsSaving = SaveGamePtr->bIsSaving;
+			bIsRestoring = true;
+
+			bool bEmpty = false;
+			for (auto &item : SaveGamePtr->LastData.piece) {
+				if (item != -1) {
+					bEmpty = true;
+					break;
+				}
+			}
+			if (!bEmpty) bIsRestoring = false;
 		}
 	}
-	else {
-		SaveGamePtr = MakeShareable(Cast<UGame2048SaveGame>(UGameplayStatics::CreateSaveGameObject(UGame2048SaveGame::StaticClass())));
-		BaseCB = MakeShareable(new ChessBoard());
-	}
 }
 
-void AGame2048GameModeBase::SaveData()
+void AGame2048GameModeBase::SaveLocalData()
 {
-	if (SaveGamePtr) {
+	TSharedPtr<UGame2048SaveGame> SaveGamePtr = MakeShareable(Cast<UGame2048SaveGame>(UGameplayStatics::CreateSaveGameObject(UGame2048SaveGame::StaticClass())));
+
+	if (SaveGamePtr && BaseCB) {
+		FSaveDataStruct SaveData = UGame2048SaveGame::InitDataFromChessBoard(*BaseCB);
+		SaveGamePtr->SetupLastData(SaveData);
+		SaveGamePtr->SetupRank(Rank);
+		SaveGamePtr->bIsSaving = bIsSaving;
 		UGameplayStatics::SaveGameToSlot(SaveGamePtr.Get(), "SaveData", 0);
-		SaveGamePtr.Reset();
 	}
 }
 
-void AGame2048GameModeBase::UpdateLastData()
+void AGame2048GameModeBase::SetupRank(const TArray<FSaveDataStruct> &r)
 {
-	UE_LOG(LogTemp, Warning, TEXT("UpdateLastData"));
+	Rank.RemoveAll([](const FSaveDataStruct &sds) -> bool {return true; });
 
-	SaveGamePtr->SetupLastData(BaseCB);
+	for (auto &item : r) {
+		Rank.Add(item);
+	}
 }
 
 void AGame2048GameModeBase::UpKeyHandle()
@@ -323,30 +498,7 @@ void AGame2048GameModeBase::OnClickedButton0Callback()
 {
 	//UE_LOG(LogTemp, Warning, TEXT("OnClickedButton0Callback"));
 
-	FText MessageText = FText::FromString(TEXT("是否开始新游戏?"));
-	FText TitleText = FText::FromString(TEXT("新游戏"));
-
-	if (!newGameWindowPtr.IsValid()) {
-		newGameWindowPtr = SNew(SWindow).Title(TitleText).ClientSize(FVector2D(200.0f, 100.f)).IsTopmostWindow(true);
-		TSharedPtr<SVerticalBox> mainWidget = SNew(SVerticalBox) + SVerticalBox::Slot().HAlign(HAlign_Fill)[
-			SNew(STextBlock).Text(MessageText)
-		] + SVerticalBox::Slot().HAlign(HAlign_Right)[
-			SNew(SHorizontalBox) + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
-				SNew(SButton).Content()[
-					SNew(STextBlock).Text(FText::FromString("Yes"))
-				].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedButton0YesCallback))
-			] + SHorizontalBox::Slot().VAlign(VAlign_Center).AutoWidth()[
-				SNew(SButton).Content()[
-					SNew(STextBlock).Text(FText::FromString("No"))
-				].OnClicked(FOnClicked::CreateUObject(this, &AGame2048GameModeBase::OnClickedButton0NoCallback))
-			]
-		];
-			newGameWindowPtr->SetOnWindowClosed(FOnWindowClosed::CreateLambda([&](TSharedRef<SWindow> window) {
-				newGameWindowPtr.Reset();
-			}));
-			newGameWindowPtr->SetContent(mainWidget.ToSharedRef());
-			FSlateApplication::Get().AddWindow(newGameWindowPtr.ToSharedRef());
-	}
+	CreateNewGameWidget();
 }
 
 void AGame2048GameModeBase::OnClickedButton1Callback()
@@ -354,88 +506,126 @@ void AGame2048GameModeBase::OnClickedButton1Callback()
 	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton1Callback"));
 
 	if (BaseCB) {
+		History.RemoveAll([](const ChessBoard &cb) {return true; });
+
 		BaseCB->RandomStartGame();
 		BaseCB->IsRemoveing = true;
+		UpdateGraph();
+		bIsSaving = false;
 	}
-	UpdateGraph();
 }
 
 void AGame2048GameModeBase::OnClickedButton2Callback()
 {
 	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton2Callback"));
 
+
+	if (History.Num() > 1) {
+		*BaseCB = History[History.Num() - 1];
+		History.RemoveAt(History.Num() - 1);
+	}
+	else {
+		*BaseCB = History[History.Num() - 1];
+	}
+	UpdateGraphData();
 }
 
 void AGame2048GameModeBase::OnClickedButton3Callback()
 {
 	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton3Callback"));
 
-	if (!RankWindowPtr.IsValid()) {
-		RankWindowPtr = SNew(SWindow).ClientSize(FVector2D(200.0f, 350.0f)).Title(FText::FromString(TEXT("排行榜")));
-
-		TSharedPtr<SWidget> ScrollWidget;
-		TSharedPtr<SWidget> CanvasPanel = SNew(SCanvas) + SCanvas::Slot().Position(FVector2D(0.0f, 0.0f)).Size(FVector2D(200.0f, 50.0f))[
-			SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center).HAlign(HAlign_Center)[
-				SNew(STextBlock).Text(FText::FromString(TEXT("---排行榜---")))
-			]
-		] + SCanvas::Slot().Position(FVector2D(0.0f, 50.0f)).Size(FVector2D(200.0f, 245.0f))[
-			SAssignNew(ScrollWidget, SScrollBox) + SScrollBox::Slot().VAlign(VAlign_Fill)[
-				SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1.0f).HAlign(HAlign_Center)[
-					SNew(STextBlock).Text(FText::FromString(TEXT("排名")))
-				] + SHorizontalBox::Slot().FillWidth(1.0f).HAlign(HAlign_Center)[
-					SNew(STextBlock).Text(FText::FromString(TEXT("姓名")))
-				] + SHorizontalBox::Slot().FillWidth(3.0f).HAlign(HAlign_Center)[
-					SNew(STextBlock).Text(FText::FromString(TEXT("得分")))
-				]
-			]
-		] + SCanvas::Slot().Position(FVector2D(0.0f, 295.0f)).Size(FVector2D(200.0f, 55.0f))[
-			SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center).HAlign(HAlign_Right).Padding(FMargin(10.0f, 0.0f))[
-				SNew(SButton).Content()[
-					SNew(STextBlock).Text(FText::FromString(TEXT("确定")))
-				].OnClicked(FOnClicked::CreateLambda([&]() -> FReply{
-						FSlateApplication::Get().DestroyWindowImmediately(RankWindowPtr.ToSharedRef());
-						RankWindowPtr.Reset();
-						FSlateApplication::Get().SetUserFocusToGameViewport(0);
-						return FReply::Handled();
-					}))
-			]
-		];
-
-		RankWindowPtr->SetContent(CanvasPanel.ToSharedRef());
-		RankWindowPtr->SetOnWindowClosed(FOnWindowClosed::CreateLambda([&](TSharedRef<SWindow> window) {
-			RankWindowPtr.Reset();
-		}));
-		FSlateApplication::Get().AddWindow(RankWindowPtr.ToSharedRef());
-	}
+	CreateRankWidget();
 }
 
 void AGame2048GameModeBase::OnClickedButton4Callback()
 {
 	UE_LOG(LogTemp, Warning, TEXT("OnClickedButton4Callback"));
 
+	if (!ExplanationWindowPtr.IsValid()) {
+		ExplanationWindowPtr = SNew(SWindow).ClientSize(FVector2D(200.0f, 250.0f)).Title(FText::FromString(TEXT("说明")));
+		
+		TSharedPtr<SWidget> mainWidget = SNew(SVerticalBox) + SVerticalBox::Slot().VAlign(VAlign_Center)[
+			SNew(STextBlock).Text(FText::FromString(TEXT("这是说明，键盘上下左右可移动方块\n作者：廖其华")))
+		] + SVerticalBox::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)[
+			SNew(SButton).HAlign(HAlign_Center).Content()[
+				SNew(STextBlock).Text(FText::FromString(TEXT("确定")))
+			].OnClicked(FOnClicked::CreateLambda([&]() -> FReply {
+					ExplanationWindowPtr->RequestDestroyWindow();
+
+					return FReply::Handled();
+				}))
+		];
+
+		ExplanationWindowPtr->SetContent(mainWidget.ToSharedRef());
+		ExplanationWindowPtr->SetOnWindowClosed(FOnWindowClosed::CreateLambda([&](TSharedRef<SWindow> window) {
+			ExplanationWindowPtr.Reset();
+		}));
+		FSlateApplication::Get().AddWindow(ExplanationWindowPtr.ToSharedRef());
+	}
 }
 
 FReply AGame2048GameModeBase::OnClickedButton0YesCallback()
 {
+	History.RemoveAll([](const ChessBoard &cb) {return true; });
+
 	if (BaseCB) {
 		BaseCB->initChessBoard();
 		BaseCB->IsRemoveing = true;
+		UpdateGraph();
+		UpdateMaxScore();
+		bIsSaving = false;
 	}
-	UpdateGraph();
 
-	FSlateApplication::Get().DestroyWindowImmediately(newGameWindowPtr.ToSharedRef());
+	newGameWindowPtr->RequestDestroyWindow();
 	newGameWindowPtr.Reset();
-
 	FSlateApplication::Get().SetUserFocusToGameViewport(0);
 	return FReply::Handled();
 }
 
 FReply AGame2048GameModeBase::OnClickedButton0NoCallback()
 {
-	FSlateApplication::Get().DestroyWindowImmediately(newGameWindowPtr.ToSharedRef());
+	newGameWindowPtr->RequestDestroyWindow();
 	newGameWindowPtr.Reset();
-
 	FSlateApplication::Get().SetUserFocusToGameViewport(0);
 	return FReply::Handled();
+}
+
+FReply AGame2048GameModeBase::OnClickedNameYesCallback()
+{
+	if (EditTextPtr.IsValid()) {
+		FSaveDataStruct sds = UGame2048SaveGame::InitDataFromChessBoard(*BaseCB);
+		FString name = EditTextPtr->GetText().ToString();
+		if (name.IsEmpty()) {
+			sds.name = TEXT("无名氏");
+		}
+		else sds.name = name;
+
+		Rank.Add(sds);
+	}
+
+	NameWindowPtr->RequestDestroyWindow();
+	NameWindowPtr.Reset();
+
+	return FReply::Handled();
+}
+
+FReply AGame2048GameModeBase::OnClickedNameNoCallback()
+{
+	FSaveDataStruct sds = UGame2048SaveGame::InitDataFromChessBoard(*BaseCB);
+	sds.name = TEXT("无名氏");
+
+	Rank.Add(sds);
+
+	NameWindowPtr->RequestDestroyWindow();
+	NameWindowPtr.Reset();
+
+	return FReply::Handled();
+}
+
+void AGame2048GameModeBase::NameCloseCallback(const TSharedRef<SWindow>& window)
+{
+	RankWindowPtr.Reset();
+	bIsSaving = true;
+	CreateRankWidget();
 }
 

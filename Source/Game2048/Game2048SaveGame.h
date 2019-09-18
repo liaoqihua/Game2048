@@ -18,6 +18,8 @@ struct FSaveDataStruct
 		int num;
 	UPROPERTY()
 		int score;
+	UPROPERTY()
+		FString name;
 
 	FSaveDataStruct() {
 		for (int i = 0; i < 4; ++i) {
@@ -39,13 +41,22 @@ class GAME2048_API UGame2048SaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
+	UGame2048SaveGame() {}
+	UGame2048SaveGame(const FSaveDataStruct &ds, const TArray<FSaveDataStruct> &r)
+		:LastData(ds), Rank(r), bIsSaving(false)
+	{
+	}
+
+public:
 	UPROPERTY()
 		FSaveDataStruct LastData;
 	UPROPERTY()
 		TArray<FSaveDataStruct> Rank;
-
+	UPROPERTY()
+		bool bIsSaving;
 public:
-	void SetupLastData(TSharedPtr<ChessBoard> cb);
-	FSaveDataStruct InitDataFromChessBoard(const ChessBoard &cb);
-	ChessBoard TransDataToChessBoard(const FSaveDataStruct &sds);
+	void SetupLastData(const FSaveDataStruct &sds);
+	void SetupRank(const TArray<FSaveDataStruct> &r);
+	static FSaveDataStruct InitDataFromChessBoard(const ChessBoard &cb);
+	static ChessBoard TransDataToChessBoard(const FSaveDataStruct &sds);
 };

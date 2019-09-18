@@ -43,11 +43,13 @@ public:
 		piece[3][3] = UserWidget->GetWidgetFromName("Block44");
 
 		score = UserWidget->GetWidgetFromName("ScoreTextBlock");
+		maxScore = UserWidget->GetWidgetFromName("MaxScoreTB");
 	}
 
 public:
 	UWidget *piece[4][4];
 	UWidget *score;
+	UWidget *maxScore;
 };
 
 /**
@@ -71,14 +73,20 @@ public:
 public:
 	void UpdateOnePiece(int value, UWidget *Widget);
 	void UpdateGraph();
+	void UpdateGraphData();
 	void UpdateScore();
+	void UpdateMaxScore();
+	void AddHistory();
 	void PlayAnimation(UUserWidget *widget);
 	FLinearColor CreateColor(int value);
 	void InitButtonsEvent();
-
-	void LoadData();
-	void SaveData();
-	void UpdateLastData();
+	void CreateRestartWidget();
+	void CreateRankWidget();
+	void CreateInputNameWidget();
+	void CreateNewGameWidget();
+	void LoadLocalData();
+	void SaveLocalData();
+	void SetupRank(const TArray<FSaveDataStruct> &r);
 
 	UFUNCTION()
 		void UpKeyHandle();
@@ -101,6 +109,9 @@ public:
 
 	FReply OnClickedButton0YesCallback();
 	FReply OnClickedButton0NoCallback();
+	FReply OnClickedNameYesCallback();
+	FReply OnClickedNameNoCallback();
+	void NameCloseCallback(const TSharedRef<SWindow>& window);
 
 public:
 	UPROPERTY(EditAnywhere, Category = "WBPClass")
@@ -117,8 +128,16 @@ public:
 
 	TSharedPtr<ChessBoard> BaseCB;
 	TSharedPtr<UWidgetChessBoard> DisplayCB;
-	TSharedPtr<UGame2048SaveGame> SaveGamePtr;
 
-	TSharedPtr<SWindow> newGameWindowPtr;
+	TArray<FSaveDataStruct> Rank;
+	TArray<ChessBoard> History;
+
+	TSharedPtr<SWindow> newGameWindowPtr;//重新开始的界面指针
 	TSharedPtr<SWindow> RankWindowPtr;
+	TSharedPtr<SWindow> NameWindowPtr;
+	TSharedPtr<SWindow> ExplanationWindowPtr;
+	TSharedPtr<class SEditableText> EditTextPtr;
+private:
+	bool bIsSaving;
+	bool bIsRestoring;//用于控制开始载入数据时不更新面板
 };
